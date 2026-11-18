@@ -31,8 +31,8 @@ jobs:
           git checkout -- src
       - name: "old test (main's version) under mutation 2 (expected to PASS: the gap)"
         run: |
-          git show origin/main:frontend/src/components/Scenarios/ScenarioRunPage.test.tsx > /dev/null 2>&1 || git fetch -q origin main
+          git fetch -q --depth=1 origin main
           sed -i 's/trigger.current = opener/if (!(globalThis as any).__opened) { trigger.current = opener; (globalThis as any).__opened = true }/' src/hooks/useScenarioRunAttackDetails.ts
           sed -i 's/focusTarget?.focus()/focusTarget?.focus(); trigger.current = null/' src/hooks/useScenarioRunAttackDetails.ts
-          git show HEAD~2:frontend/src/components/Scenarios/ScenarioRunPage.test.tsx > src/components/Scenarios/ScenarioRunPage.test.tsx
+          git show FETCH_HEAD:frontend/src/components/Scenarios/ScenarioRunPage.test.tsx > src/components/Scenarios/ScenarioRunPage.test.tsx
           npx jest src/components/Scenarios/ScenarioRunPage.test.tsx -t "attack row when attack details are dismissed with Escape"
