@@ -1,5 +1,5 @@
 name: verify 4399
-on: { push: { branches: ["verify/4399"] } }
+on: pull_request
 jobs:
   verify:
     runs-on: ubuntu-latest
