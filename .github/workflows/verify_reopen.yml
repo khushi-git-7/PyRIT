@@ -1,0 +1,38 @@
+name: verify reopen test
+on: { push: { branches: ["verify/attack-row-reopen"] } }
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: frontend } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - run: npm ci
+      - name: lint + type-check
+        run: npx eslint src/components/Scenarios/ScenarioRunPage.test.tsx --max-warnings 0 && npm run type-check
+      - name: whole test file (expected to pass)
+        run: npx jest src/components/Scenarios/ScenarioRunPage.test.tsx
+      - name: full unit suite (expected to pass)
+        run: npx jest
+      - name: "mutation 1: no focus restore on close (new test expected to FAIL)"
+        run: |
+          sed -i 's/focusTarget?.focus()/void focusTarget/' src/hooks/useScenarioRunAttackDetails.ts
+          git diff --stat
+          if npx jest src/components/Scenarios/ScenarioRunPage.test.tsx -t "attack row after Escape and on reopening"; then echo "NOT CAUGHT"; exit 1; else echo "CAUGHT"; fi
+          git checkout -- src
+      - name: "mutation 2: opener stored only on the first open (new test expected to FAIL at the reopen)"
+        run: |
+          sed -i 's/trigger.current = opener/if (!(globalThis as any).__opened) { trigger.current = opener; (globalThis as any).__opened = true }/' src/hooks/useScenarioRunAttackDetails.ts
+          sed -i 's/focusTarget?.focus()/focusTarget?.focus(); trigger.current = null/' src/hooks/useScenarioRunAttackDetails.ts
+          git diff
+          if npx jest src/components/Scenarios/ScenarioRunPage.test.tsx -t "attack row after Escape and on reopening" 2>&1 | tee out.txt; then echo "NOT CAUGHT"; exit 1; fi
+          grep -n "ScenarioRunPage.test.tsx:4[0-9][0-9]" out.txt | head -5
+          git checkout -- src
+      - name: "old test (main's version) under mutation 2 (expected to PASS: the gap)"
+        run: |
+          git show origin/main:frontend/src/components/Scenarios/ScenarioRunPage.test.tsx > /dev/null 2>&1 || git fetch -q origin main
+          sed -i 's/trigger.current = opener/if (!(globalThis as any).__opened) { trigger.current = opener; (globalThis as any).__opened = true }/' src/hooks/useScenarioRunAttackDetails.ts
+          sed -i 's/focusTarget?.focus()/focusTarget?.focus(); trigger.current = null/' src/hooks/useScenarioRunAttackDetails.ts
+          git show HEAD~2:frontend/src/components/Scenarios/ScenarioRunPage.test.tsx > src/components/Scenarios/ScenarioRunPage.test.tsx
+          npx jest src/components/Scenarios/ScenarioRunPage.test.tsx -t "attack row when attack details are dismissed with Escape"
