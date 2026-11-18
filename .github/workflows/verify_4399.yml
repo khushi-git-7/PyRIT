@@ -29,7 +29,7 @@ jobs:
           if uv run --frozen pytest tests/unit/converter/test_image_noise_converter.py -q -k alpha; then echo NOT CAUGHT; exit 1; fi
           git checkout -- pyrit
       - name: generate notebook cells
-        run: uv run --frozen --with jupytext --with nbclient --with ipykernel --with nbformat python .verify/gen_nb.py
+        run: uv run --frozen --with jupytext --with nbclient --with ipykernel --with nbformat python .verify/gen_nb.py ImageNoiseConverter ImageRotationConverter
       - name: pre-commit on changed files (twice, so fixers settle)
         run: |
           FILES="pyrit/converter/image_noise_converter.py pyrit/converter/__init__.py tests/unit/converter/test_image_noise_converter.py doc/code/converters/3_image_converters.py doc/code/converters/3_image_converters.ipynb doc/code/converters/0_converters.ipynb"
