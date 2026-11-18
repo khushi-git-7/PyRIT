@@ -1,5 +1,5 @@
 name: verify reopen test
-on: { push: { branches: ["verify/attack-row-reopen"] } }
+on: pull_request
 jobs:
   verify:
     runs-on: ubuntu-latest
