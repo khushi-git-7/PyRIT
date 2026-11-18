@@ -1,0 +1,47 @@
+name: verify 4399
+on: { push: { branches: ["verify/4399"] } }
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: astral-sh/setup-uv@v6
+        with: { python-version: "3.11" }
+      - run: uv sync --frozen --extra all
+      - name: new tests
+        run: uv run --frozen pytest tests/unit/converter/test_image_noise_converter.py -v -p no:randomly
+      - name: converter unit tests
+        run: uv run --frozen pytest -n 4 tests/unit/converter -q
+      - name: "mutation: noise from the global numpy state (seed test expected to FAIL)"
+        run: |
+          sed -i 's/np.random.default_rng(get_random_seed(stream="image-noise"))/np.random.default_rng()/' pyrit/converter/image_noise_converter.py
+          if uv run --frozen pytest tests/unit/converter/test_image_noise_converter.py -q -k same_seed; then echo NOT CAUGHT; exit 1; fi
+          git checkout -- pyrit
+      - name: "mutation: no clipping (clip test expected to FAIL)"
+        run: |
+          sed -i 's/np.clip(np.rint(color, out=color), 0, 255, out=color)/np.rint(color, out=color)/' pyrit/converter/image_noise_converter.py
+          if uv run --frozen pytest tests/unit/converter/test_image_noise_converter.py -q -k clips; then echo NOT CAUGHT; exit 1; fi
+          git checkout -- pyrit
+      - name: "mutation: noise on alpha too (alpha test expected to FAIL)"
+        run: |
+          sed -i 's/color = pixels\[..., :3\]/color = pixels/' pyrit/converter/image_noise_converter.py
+          if uv run --frozen pytest tests/unit/converter/test_image_noise_converter.py -q -k alpha; then echo NOT CAUGHT; exit 1; fi
+          git checkout -- pyrit
+      - name: generate notebook cells
+        run: uv run --frozen --with jupytext --with nbclient --with ipykernel --with nbformat python .verify/gen_nb.py
+      - name: pre-commit on changed files (twice, so fixers settle)
+        run: |
+          FILES="pyrit/converter/image_noise_converter.py pyrit/converter/__init__.py tests/unit/converter/test_image_noise_converter.py doc/code/converters/3_image_converters.py doc/code/converters/3_image_converters.ipynb doc/code/converters/0_converters.ipynb"
+          uv run --frozen --with pre-commit pre-commit run --files $FILES || true
+          git diff --stat
+          uv run --frozen --with pre-commit pre-commit run --files $FILES
+      - name: ty
+        run: make ty
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: notebooks
+          path: |
+            doc/code/converters/3_image_converters.ipynb
+            doc/code/converters/0_converters.ipynb
